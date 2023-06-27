@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright 2016 Red Hat, Inc. and/or its affiliates
+  ~ and other contributors as indicated by the @author tags.
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~ http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <groupId>org.keycloak.example.demo</groupId>
+    <artifactId>offline-access-portal</artifactId>
+    <version>15.0.2</version>
+
+    <modelVersion>4.0.0</modelVersion>
+    <packaging>war</packaging>
+    <name>Offline Access Portal</name>
+    <description>
+        Client ID: offline-access-portal
+        Client secret: 8nVuRI9Anfti1ZHYzgcUJ7a1XRjrbU0l
+    </description>
+
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <!-- Bootable jar -->
+        <wildfly-eap8.version>27.0.0.Final</wildfly-eap8.version>
+        <version.wildfly-jar-maven-plugin>8.0.1.Final</version.wildfly-jar-maven-plugin>
+        <wildfly-eap8.feature-pack.location>org.wildfly:wildfly-galleon-pack:${wildfly-eap8.version}</wildfly-eap8.feature-pack.location>
+        <!-- WildFly/EAP 8 Maven Plugin coordinates -->
+        <wildfly-maven-plugin.groupId>org.wildfly.plugins</wildfly-maven-plugin.groupId>
+        <wildfly-maven-plugin.artifactId>wildfly-maven-plugin</wildfly-maven-plugin.artifactId>
+        <wildfly-maven-plugin.version>4.1.0.Beta2</wildfly-maven-plugin.version>
+        <wildfly-eap8.cloud-feature-pack.location>org.wildfly.cloud:wildfly-cloud-galleon-pack:2.0.1.Final</wildfly-eap8.cloud-feature-pack.location>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>jboss</id>
+            <name>jboss repo</name>
+            <url>https://repository.jboss.org/nexus/content/groups/public/</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <dependencies>
+
+        <!-- https://mvnrepository.com/artifact/jakarta.servlet/jakarta.servlet-api -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <version>6.0.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.keycloak/keycloak-core -->
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-core</artifactId>
+            <version>21.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-adapter-spi</artifactId>
+            <version>21.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-adapter-core</artifactId>
+            <version>21.1.1</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.keycloak/keycloak-policy-enforcer -->
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-policy-enforcer</artifactId>
+            <version>21.1.1</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.keycloak/keycloak-servlet-filter-adapter -->
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-servlet-filter-adapter</artifactId>
+            <version>21.1.1</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.wildfly.security/wildfly-elytron -->
+        <dependency>
+            <groupId>org.wildfly.security</groupId>
+            <artifactId>wildfly-elytron</artifactId>
+            <version>2.2.1.Final</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/commons-beanutils/commons-beanutils -->
+        <dependency>
+            <groupId>commons-beanutils</groupId>
+            <artifactId>commons-beanutils</artifactId>
+            <version>1.9.4</version>
+        </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.14</version>
+            <scope>provided</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <finalName>offline-access-portal</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.4.0</version>
+                <configuration>
+                    <attachClasses>true</attachClasses>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.wildfly.plugins</groupId>
+                <artifactId>wildfly-jar-maven-plugin</artifactId>
+                <version>${version.wildfly-jar-maven-plugin}</version>
+                <!-- WildFly/EAP 8 Bootable JAR is configured with WildFly/EAP 8 FPs -->
+                <configuration>
+                    <feature-packs>
+                        <feature-pack>
+                            <location>${wildfly-eap8.feature-pack.location}</location>
+                        </feature-pack>
+                    </feature-packs>
+                    <layers>
+                        <layer>logging</layer>
+                        <layer>jaxrs-server</layer>
+                        <layer>elytron-oidc-client</layer>
+                    </layers>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>${wildfly-maven-plugin.groupId}</groupId>
+                <artifactId>${wildfly-maven-plugin.artifactId}</artifactId>
+                <version>${wildfly-maven-plugin.version}</version>
+                <!-- Use configuration from parent and append specific configuration for project - layers, cli,...-->
+                <configuration>
+
+                    <!-- TODO: remove, is only needed for manual experimentation -->
+                    <javaOpts>-Djboss.socket.binding.port-offset=100</javaOpts>
+
+                    <feature-packs>
+                        <feature-pack>
+                            <location>${wildfly-eap8.feature-pack.location}</location>
+                        </feature-pack>
+                        <feature-pack>
+                            <location>${wildfly-eap8.cloud-feature-pack.location}</location>
+                        </feature-pack>
+                    </feature-packs>
+                    <layers>
+                        <layer>logging</layer>
+                        <layer>jaxrs-server</layer>
+                        <layer>elytron-oidc-client</layer>
+                    </layers>
+                    <!-- <filename>ROOT.war</filename> -->
+                    <!--
+                        Both the Bootable JAR and Maven plugin are executed on some cases and their executions
+                        might collide. Let's isolate the WildFly/EAP Maven plugin execution to be safe
+                    -->
+                    <galleon-options>
+                        <jboss-fork-embedded>true</jboss-fork-embedded>
+                    </galleon-options>
+                    <packaging-scripts>
+                        <execution>
+                            <commands>
+                                <command>/socket-binding-group=standard-sockets:write-attribute(name=port-offset,value=100)</command>
+                            </commands>
+                        </execution>
+                    </packaging-scripts>
+                    <!-- <packaging-scripts>
+                        <execution>
+                            <commands>
+                                <command>/subsystem=keycloak/secure-deployment="${project.build.finalName}.war"/:add( \
+                                realm="${env.TEST_SSO_REALM}", \
+                                resource="${project.build.finalName}", \
+                                auth-server-url=${env.TEST_SSO_ROUTE}/, \
+                                ssl-required=EXTERNAL)</command>
+                                <command>/subsystem=keycloak/secure-deployment="${project.build.finalName}.war"/credential=secret:add(value=${env.TEST_SSO_CLIENT_SECRET})</command>
+                            </commands>
+                        </execution>
+                    </packaging-scripts> -->
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>package</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

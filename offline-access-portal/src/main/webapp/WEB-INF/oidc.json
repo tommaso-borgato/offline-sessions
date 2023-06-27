@@ -1,0 +1,10 @@
+{
+  "realm": "offline_sessions",
+  "auth-server-url": "http://0.0.0.0:8080/",
+  "ssl-required": "external",
+  "resource": "offline-access-portal",
+  "credentials": {
+    "secret": "8nVuRI9Anfti1ZHYzgcUJ7a1XRjrbU0l"
+  },
+  "confidential-port": 0
+}
