@@ -1,0 +1,8 @@
+{
+    "client-id" : "${env.OIDC_CLIENT_ID:frontend-web-app}",
+    "provider-url" : "${env.OIDC_PROVIDER_URL:http://localhost:8080}/realms/${env.OIDC_REALM:demo-realm}",
+    "ssl-required" : "EXTERNAL",
+    "credentials" : {
+        "secret" : "${env.OIDC_CLIENT_SECRET:123PIPPOBAUDO}"
+    }
+}
