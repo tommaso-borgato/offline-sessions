@@ -17,368 +17,121 @@
 package org.wildfly.security.examples.app;
 
 import jakarta.servlet.ServletContext;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.ws.rs.core.GenericType;
+import jakarta.servlet.http.HttpSession;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Invocation;
 import jakarta.ws.rs.core.Response;
-import org.apache.commons.io.IOUtils;
-import org.wildfly.security.http.HttpAuthenticationException;
-import org.wildfly.security.http.HttpScope;
-import org.wildfly.security.http.HttpServerCookie;
-import org.wildfly.security.http.HttpServerMechanismsResponder;
-import org.wildfly.security.http.HttpServerRequest;
-import org.wildfly.security.http.Scope;
-import org.wildfly.security.http.oidc.AccessAndIDTokenResponse;
 import org.wildfly.security.http.oidc.AccessToken;
 import org.wildfly.security.http.oidc.IDToken;
-import org.wildfly.security.http.oidc.OidcClientConfiguration;
-import org.wildfly.security.http.oidc.OidcClientContext;
-import org.wildfly.security.http.oidc.OidcHttpFacade;
 import org.wildfly.security.http.oidc.OidcSecurityContext;
 import org.wildfly.security.http.oidc.RefreshableOidcSecurityContext;
 import org.wildfly.security.http.oidc.ServerRequest;
 
-import javax.net.ssl.SSLSession;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.callback.UnsupportedCallbackException;
-import java.io.BufferedWriter;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.net.InetSocketAddress;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.cert.Certificate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 public class Controller {
 
-    public static final String FILE = System.getProperty("java.io.tmpdir") + "/" +
-            (System.getenv("OIDC_CLIENT_ID") == null ? "frontend-web-app" : System.getenv("OIDC_CLIENT_ID"));
+	static final CallbackHandler HANDLER = new CallbackHandler() {
 
-    static final CallbackHandler HANDLER = new CallbackHandler() {
+		@Override
+		public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
+			throw new UnsupportedCallbackException(callbacks[0]);
+		}
+	};
 
-        @Override
-        public void handle(Callback[] callbacks) throws IOException, UnsupportedCallbackException {
-            throw new UnsupportedCallbackException(callbacks[0]);
-        }
-    };
+	private static final Logger LOG = Logger.getLogger(Controller.class.getName());
+	private static final String AUTHZ_HEADER = "Authorization";
+	private static final String ENDPOINT_URL = "http://localhost:8090/service/";
 
-    private static final Logger LOG = Logger.getLogger(Controller.class.getName());
-    private static final String AUTHZ_HEADER = "Authorization";
-    private static final String ENDPOINT_URL = "http://localhost:8090/service/";
+	public boolean isLoggedIn(HttpServletRequest req) throws IOException {
+		LOG.info("=====================================================");
+		req.getAttributeNames().asIterator().forEachRemaining(
+				s -> LOG.info("HttpServletRequest.getAttribute(" + s + ") --> " + req.getAttribute(s))
+		);
+		LOG.info("=====================================================");
+		OidcSecurityContext ctx = getOidcSecurityContext(req);
+		return ctx != null;
+	}
 
-    public boolean isLoggedIn(HttpServletRequest req) throws IOException {
-        OidcSecurityContext ctx = getOidcSecurityContext(req);
+	public String logout(HttpServletRequest req) {
+		HttpSession session = req.getSession();
+		if (session != null) {
+			session.invalidate();
+		}
+		return "Successfully logged out!";
+	}
 
-        LOG.info("=====================================================");
-        req.getAttributeNames().asIterator().forEachRemaining(
-                s -> LOG.info("HttpServletRequest.getAttribute(" + s + ") --> " + req.getAttribute(s))
-        );
-        LOG.info("=====================================================");
+	public String storeRefreshToken(HttpServletRequest req) throws IOException {
+		OidcSecurityContext ctx = getOidcSecurityContext(req);
+		String refreshToken = null;
+		IDToken idToken = null;
+		AccessToken accessToken = null;
+		if (ctx != null) {
+			RefreshableOidcSecurityContext rCtx = RefreshableOidcSecurityContext.class.cast(ctx);
+			refreshToken = rCtx.getRefreshToken();
+			idToken = rCtx.getIDToken();
+			accessToken = rCtx.getToken();
+			LOG.info("=====================================================");
+			LOG.info("refreshToken -> " + refreshToken);
+			LOG.info("IDToken -> " + idToken);
+			LOG.info("AccessToken -> " + accessToken);
+			LOG.info("=====================================================");
+			RefreshTokenUtils.saveToken(refreshToken);
+		}
+		return refreshToken;
+	}
 
-        if (ctx != null) {
-            RefreshableOidcSecurityContext rCtx = RefreshableOidcSecurityContext.class.cast(ctx);
-            String refreshToken = rCtx.getRefreshToken();
-            IDToken idToken = rCtx.getIDToken();
-            AccessToken accessToken = rCtx.getToken();
-            LOG.info("=====================================================");
-            LOG.info("refreshToken -> " + refreshToken);
-            LOG.info("IDToken -> " + idToken);
-            LOG.info("AccessToken -> " + accessToken);
-            LOG.info("=====================================================");
-            saveToken(refreshToken);
-        }
-        return ctx != null;
-    }
+	public String getMessage(HttpServletRequest req, ServletContext servletContext) throws IOException, ServerRequest.HttpFailure {
+		String action = getAction(req);
+		if (action.equals("")) return "";
+		OidcSecurityContext oidcSecurityContext = getOidcSecurityContext(req);
+		String target = System.getenv("BACKEND_SERVICE_URL");
+		Invocation.Builder invocationBuilder = ClientBuilder.newClient().target(target == null ? ENDPOINT_URL : target).path(action).request();
+		Response response;
+		if (oidcSecurityContext != null) {
+			// ==============================================================================
+			// User is logged in: we have a super fresh access token
+			// ==============================================================================
+			LOG.info("### User is logged in: we have a super fresh access token ...");
+			response = invocationBuilder.header(AUTHZ_HEADER, String.format("Bearer %s", oidcSecurityContext.getTokenString())).get();
+		} else {
+			String accessToken = RefreshTokenUtils.getAccessToken(req, servletContext);
+			if (accessToken != null) {
+				// ==============================================================================
+				// User logged out but logged in previously: we stored the previous refresh token
+				// which we use to get a new access token from the IDSP
+				// ==============================================================================
+				LOG.info("### User logged out but logged in previously ...");
+				response = invocationBuilder.header(AUTHZ_HEADER, String.format("Bearer %s", accessToken)).get();
+			} else {
+				// ==============================================================================
+				// User has NEVER logged in yet
+				// ==============================================================================
+				LOG.info("### User has NEVER logged in yet ...");
+				response = invocationBuilder.get();
+			}
+		}
+		String message;
+		if (response.getStatus() == 200) {
+			message = response.readEntity(String.class);
+		} else {
+			message = "<span class='error'>" + response.getStatus() + " " + response.getStatusInfo() + "</span>";
+		}
+		response.close();
+		return message;
+	}
 
-    public String getMessage(HttpServletRequest req, ServletContext servletContext) throws IOException, ServerRequest.HttpFailure {
-        String action = getAction(req);
-        if (action.equals("")) return "";
-        OidcSecurityContext oidcSecurityContext = getOidcSecurityContext(req);
-        String target = System.getenv("BACKEND_SERVICE_URL");
-        Invocation.Builder invocationBuilder = ClientBuilder.newClient().target(target == null ? ENDPOINT_URL : target).path(action).request();
-        Response response;
-        if (oidcSecurityContext != null) {
-            String authzHeaderValue = "Bearer " + oidcSecurityContext.getTokenString();
-            LOG.info(AUTHZ_HEADER + ": " + authzHeaderValue);
-            response = invocationBuilder.header(AUTHZ_HEADER, authzHeaderValue).get();
-        } else {
-            String refreshToken = loadToken();
-            if (refreshToken != null) {
-                LOG.info("=====================================================");
-                LOG.info("refreshToken -> " + refreshToken);
-                LOG.info("=====================================================");
-                String authzHeaderValue = "Bearer " + getAccessToken(refreshToken, req, servletContext);
-                response = invocationBuilder.header(AUTHZ_HEADER, authzHeaderValue).get();
-            } else {
-                response = invocationBuilder.get();
-            }
-        }
-        String message;
-        if (response.getStatus() == 200) {
-            message = response.readEntity(String.class);
-        } else {
-            message = "<span class='error'>" + response.getStatus() + " " + response.getStatusInfo() + "</span>";
-        }
-        response.close();
-        return message;
-    }
+	private OidcSecurityContext getOidcSecurityContext(HttpServletRequest req) {
+		return (OidcSecurityContext) req.getAttribute(OidcSecurityContext.class.getName());
+	}
 
-    private String getAccessToken(String refreshToken, HttpServletRequest req, ServletContext servletContext) {
-        String accessTokenString = null;
-        try {
-            OidcClientContext ctx = (OidcClientContext) servletContext.getAttribute(OidcClientContext.class.getName());
-            OidcHttpFacade facade = new OidcHttpFacade(getHttpServerRequest(req), ctx, HANDLER);
-            OidcClientConfiguration clientConfiguration = ctx.resolveDeployment(facade);
-            AccessAndIDTokenResponse response = org.wildfly.security.http.oidc.ServerRequest.invokeRefresh(clientConfiguration, refreshToken);
-            accessTokenString = response.getAccessToken();
-            LOG.info("=====================================================");
-            LOG.info("NEW accessTokenString -> " + accessTokenString);
-            LOG.info("=====================================================");
-        } catch (Exception err) {
-            LOG.severe("Error using refresh token: " + err.getMessage());
-        }
-        return accessTokenString;
-    }
-
-    private HttpServerRequest getHttpServerRequest(HttpServletRequest req) {
-        HttpServerRequest httpServerRequest = new HttpServerRequest() {
-
-            @Override
-            public HttpScope getScope(Scope scope) {
-                return null;
-            }
-
-            @Override
-            public Collection<String> getScopeIds(Scope scope) {
-                return null;
-            }
-
-            @Override
-            public HttpScope getScope(Scope scope, String s) {
-                return null;
-            }
-
-            @Override
-            public List<String> getRequestHeaderValues(String s) {
-                final List<String> ret = new ArrayList<>();
-                req.getHeaderNames().asIterator().forEachRemaining(
-                        s1 -> ret.add(req.getHeader(s1))
-                );
-                return ret;
-            }
-
-            @Override
-            public String getFirstRequestHeaderValue(String s) {
-                return null;
-            }
-
-            @Override
-            public SSLSession getSSLSession() {
-                return null;
-            }
-
-            @Override
-            public Certificate[] getPeerCertificates() {
-                return new Certificate[0];
-            }
-
-            @Override
-            public void noAuthenticationInProgress(HttpServerMechanismsResponder httpServerMechanismsResponder) {
-
-            }
-
-            @Override
-            public void noAuthenticationInProgress() {
-                HttpServerRequest.super.noAuthenticationInProgress();
-            }
-
-            @Override
-            public void authenticationInProgress(HttpServerMechanismsResponder httpServerMechanismsResponder) {
-
-            }
-
-            @Override
-            public void authenticationComplete(HttpServerMechanismsResponder httpServerMechanismsResponder) {
-
-            }
-
-            @Override
-            public void authenticationComplete(HttpServerMechanismsResponder httpServerMechanismsResponder, Runnable runnable) {
-
-            }
-
-            @Override
-            public void authenticationComplete() {
-                HttpServerRequest.super.authenticationComplete();
-            }
-
-            @Override
-            public void authenticationFailed(String s, HttpServerMechanismsResponder httpServerMechanismsResponder) {
-
-            }
-
-            @Override
-            public void authenticationFailed(String message) {
-                HttpServerRequest.super.authenticationFailed(message);
-            }
-
-            @Override
-            public void badRequest(HttpAuthenticationException e, HttpServerMechanismsResponder httpServerMechanismsResponder) {
-
-            }
-
-            @Override
-            public void badRequest(HttpAuthenticationException failure) {
-                HttpServerRequest.super.badRequest(failure);
-            }
-
-            @Override
-            public String getRequestMethod() {
-                return req.getMethod();
-            }
-
-            @Override
-            public URI getRequestURI() {
-                return URI.create(req.getRequestURI());
-            }
-
-            @Override
-            public String getRequestPath() {
-                return null;
-            }
-
-            @Override
-            public String getRemoteUser() {
-                return req.getRemoteUser();
-            }
-
-            @Override
-            public Map<String, List<String>> getParameters() {
-                Map<String, List<String>> ret = new HashMap<>();
-                req.getParameterMap().forEach(
-                        (s, strings) -> ret.put(s, Arrays.asList(strings))
-                );
-                return ret;
-            }
-
-            @Override
-            public Set<String> getParameterNames() {
-                Set<String> ret = new HashSet<>();
-                req.getParameterNames().asIterator().forEachRemaining(ret::add);
-                return ret;
-            }
-
-            @Override
-            public List<String> getParameterValues(String s) {
-                return Arrays.asList(req.getParameterValues(s));
-            }
-
-            @Override
-            public String getFirstParameterValue(String s) {
-                return null;
-            }
-
-            @Override
-            public List<HttpServerCookie> getCookies() {
-                List<HttpServerCookie> cookies = new ArrayList<>();
-                Arrays.stream(req.getCookies()).iterator().forEachRemaining(
-                        cookie -> cookies.add(HttpServerCookie.getInstance(
-                                cookie.getName(),
-                                cookie.getValue(),
-                                cookie.getDomain(),
-                                cookie.getMaxAge(),
-                                cookie.getPath(),
-                                cookie.getSecure(),
-                                0,
-                                cookie.isHttpOnly()
-                        ))
-                );
-                return cookies;
-            }
-
-            @Override
-            public InputStream getInputStream() {
-                try {
-                    return req.getInputStream();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            @Override
-            public InetSocketAddress getSourceAddress() {
-                return new InetSocketAddress(req.getRemoteAddr(),req.getRemotePort());
-            }
-
-            @Override
-            public boolean suspendRequest() {
-                return false;
-            }
-
-            @Override
-            public boolean resumeRequest() {
-                return false;
-            }
-
-            @Override
-            public void setRequestInputStreamSupplier(Supplier<InputStream> requestInputStreamSupplier) {
-                HttpServerRequest.super.setRequestInputStreamSupplier(requestInputStreamSupplier);
-            }
-        };
-        return httpServerRequest;
-    }
-
-    private OidcSecurityContext getOidcSecurityContext(HttpServletRequest req) {
-        return (OidcSecurityContext) req.getAttribute(OidcSecurityContext.class.getName());
-    }
-
-    private String getAction(HttpServletRequest req) {
-        if (req.getParameter("action") == null) return "";
-        return req.getParameter("action");
-    }
-
-    private static void saveToken(final String token) throws IOException {
-        PrintWriter writer = null;
-        try {
-            LOG.info(String.format("Storing token %s in file %s",token,FILE));
-            writer = new PrintWriter(new BufferedWriter(new FileWriter(FILE)));
-            writer.print(token);
-        } finally {
-            if (writer != null) {
-                writer.close();
-            }
-        }
-    }
-
-    private static String loadToken() throws IOException {
-        FileInputStream fis = null;
-        try {
-            LOG.info(String.format("Reading token from file %s",FILE));
-            fis = new FileInputStream(FILE);
-            return IOUtils.toString(fis, StandardCharsets.UTF_8.name());
-        } catch (FileNotFoundException fnfe) {
-            return null;
-        } finally {
-            if (fis != null) {
-                fis.close();
-            }
-        }
-    }
+	private String getAction(HttpServletRequest req) {
+		if (req.getParameter("action") == null) return "";
+		return req.getParameter("action");
+	}
 }

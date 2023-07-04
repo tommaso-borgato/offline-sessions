@@ -1,0 +1,3 @@
+org/wildfly/security/examples/jaxrs/Application.class
+org/wildfly/security/examples/jaxrs/Message.class
+org/wildfly/security/examples/jaxrs/Resource.class

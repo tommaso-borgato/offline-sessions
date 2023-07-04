@@ -74,7 +74,7 @@ cd server2
 export OIDC_PROVIDER_URL=http://0.0.0.0:8080
 export OIDC_REALM=demo-realm
 export OIDC_CLIENT_ID=frontend-web-app
-export OIDC_CLIENT_SECRET=3sImOj5WByN2q7GhA4u9dJEKNarxDhcv
+export OIDC_CLIENT_SECRET=wQcFl7BL6jlT328p3hklqJ89Ga0IrBuA
 export BACKEND_SERVICE_URL=http://localhost:8090/backend-service/
 
 ./bin/standalone.sh -Djboss.socket.binding.port-offset=20
