@@ -443,8 +443,8 @@
   "otpPolicyCodeReusable": false,
   "otpSupportedApplications": [
     "totpAppGoogleName",
-    "totpAppMicrosoftAuthenticatorName",
-    "totpAppFreeOTPName"
+    "totpAppFreeOTPName",
+    "totpAppMicrosoftAuthenticatorName"
   ],
   "webAuthnPolicyRpEntityName": "keycloak",
   "webAuthnPolicySignatureAlgorithms": [
@@ -735,7 +735,7 @@
       "clientAuthenticatorType": "client-secret",
       "secret": "**********",
       "redirectUris": [
-        "http://localhost:8100/frontend-web-app/*"
+        "http://127.0.0.1:8100/frontend-web-app/*"
       ],
       "webOrigins": [
         "+"
@@ -752,7 +752,7 @@
       "protocol": "openid-connect",
       "attributes": {
         "oidc.ciba.grant.enabled": "false",
-        "client.secret.creation.time": "1688463154",
+        "client.secret.creation.time": "1688975285",
         "backchannel.logout.session.required": "true",
         "post.logout.redirect.uris": "+",
         "oauth2.device.authorization.grant.enabled": "false",
@@ -1470,13 +1470,13 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-sha256-pairwise-sub-mapper",
-            "saml-user-property-mapper",
-            "saml-role-list-mapper",
-            "oidc-address-mapper",
             "oidc-full-name-mapper",
+            "oidc-address-mapper",
             "oidc-usermodel-attribute-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
+            "saml-role-list-mapper",
             "oidc-usermodel-property-mapper",
+            "saml-user-property-mapper",
             "saml-user-attribute-mapper"
           ]
         }
@@ -1489,14 +1489,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-address-mapper",
             "oidc-full-name-mapper",
             "saml-role-list-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
             "saml-user-property-mapper",
             "saml-user-attribute-mapper",
-            "oidc-usermodel-attribute-mapper",
+            "oidc-address-mapper",
             "oidc-usermodel-property-mapper",
-            "oidc-sha256-pairwise-sub-mapper"
+            "oidc-usermodel-attribute-mapper"
           ]
         }
       },
