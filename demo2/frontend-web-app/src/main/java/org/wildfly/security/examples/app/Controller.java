@@ -86,7 +86,7 @@ public class Controller {
 		return refreshToken;
 	}
 
-	public String getMessage(HttpServletRequest req, ServletContext servletContext) throws IOException, ServerRequest.HttpFailure {
+	public String getMessage(HttpServletRequest req, ServletContext servletContext) throws IOException {
 		String action = getAction(req);
 		if (action.equals("")) return "";
 		OidcSecurityContext oidcSecurityContext = getOidcSecurityContext(req);

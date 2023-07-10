@@ -52,6 +52,7 @@ First, we're going to start our WildFly instances:
 We are specifying a port offset for both `server1` and `server2` since our Keycloak instance is already exposed on port 8080;
 
 Start `server1`:
+
 ```shell
 cd server1
 
@@ -68,28 +69,31 @@ From the Keycloak Admin Console, navigate to the `frontend-web-app` client that 
 the value for the `Client secret`: env variable OIDC_CLIENT_SECRET will contain its value.
 
 Start `server2`:
+
 ```shell
 cd server2
 
 export OIDC_PROVIDER_URL=http://0.0.0.0:8080
 export OIDC_REALM=demo-realm
 export OIDC_CLIENT_ID=frontend-web-app
-export OIDC_CLIENT_SECRET=wQcFl7BL6jlT328p3hklqJ89Ga0IrBuA
+export OIDC_CLIENT_SECRET=vlYkeN55ffvVjGH8ZfI0ocw7bcLdcCBI
 export BACKEND_SERVICE_URL=http://localhost:8090/backend-service/
 
 ./bin/standalone.sh -Djboss.socket.binding.port-offset=20
 ```
 
-Now, first deploy the service:
+Alternatively, you can start two WildFly instances manually and deploy using the plugin:
 
-```
+First deploy the service:
+
+```shell
 cd oidc-with-bearer/service
 mvn wildfly:deploy -Dwildfly.port=10000
 ```
 
-Then, let's deploy the OIDC app:
+Then, deploy the OIDC app:
 
-```
+```shell
 cd oidc-with-bearer/app
 mvn wildfly:deploy -Dwildfly.port=10010
 ```
@@ -108,3 +112,45 @@ because `alice` has both `user` and `admin` roles.
 Finally, try accessing the application again but this time, log in as `bob`. When you try invoking
 the endpoints now, you'll see that you can only invoke the `public` and `secured` endpoints
 since `bob` does not have the `admin` role.
+
+### Some notes
+
+#### how-to get access token manually
+
+First, obtain a refresh token:
+
+```shell
+CLIENT_SECRET='vlYkeN55ffvVjGH8ZfI0ocw7bcLdcCBI'
+OFFLINE_TOKEN=$(curl -d 'client_id=frontend-web-app' \
+  -d "client_secret=$CLIENT_SECRET" \
+  -d "username=alice" \
+  -d "password=redhat" \
+  -d "grant_type=password" \
+  -d "scope=openid offline_access" \
+  http://0.0.0.0:8080/realms/demo-realm/protocol/openid-connect/token | jq -r '.refresh_token')
+echo $OFFLINE_TOKEN
+```
+
+Then, use the refresh token to obtain an access token:
+
+```shell
+ACCESS_TOKEN=$(curl \
+  -d "client_id=frontend-web-app" \
+  -d "client_secret=vlYkeN55ffvVjGH8ZfI0ocw7bcLdcCBI" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=$OFFLINE_TOKEN" \
+  http://0.0.0.0:8080/realms/demo-realm/protocol/openid-connect/token | jq -r '.access_token')
+echo $ACCESS_TOKEN
+```
+
+Finally, use the access token to access you service:
+
+```shell
+curl http://localhost:8090/backend-service/secured \
+   -H "Accept: application/json" \
+   -H "Authorization: Bearer $ACCESS_TOKEN" | jq
+   
+curl http://localhost:8090/backend-service/admin \
+   -H "Accept: application/json" \
+   -H "Authorization: Bearer $ACCESS_TOKEN" | jq
+```
